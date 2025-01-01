@@ -1,11 +1,6 @@
-streamlit==1.32.2
-pandas==2.2.1
-plotly==5.19.0
-emoji==2.10.1
-chardet==5.2.0
-io==0.0.1
-datetime==5.4
-collections==0.0.1
-zipfile==3.10.0
-re==2.2.1
-random==3.10.0
+streamlit==1.22.0
+pandas==2.0.3
+plotly==5.14.0
+emoji==2.3.2
+pyperclip==1.8.2
+chardet==5.1.0
