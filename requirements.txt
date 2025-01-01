@@ -3,7 +3,6 @@ pandas==2.2.1
 plotly==5.19.0
 emoji==2.10.1
 chardet==5.2.0
-plotly.express==0.4.1
 io==0.0.1
 datetime==5.4
 collections==0.0.1
