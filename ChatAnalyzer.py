@@ -38,21 +38,22 @@ def read_file_content(file_object):
 
 def process_chat_file(content):
     messages = content.split('\n')
-    pattern = r'(\d{1,2}/\d{1,2}/\d{2,4})(?:,\s*|\s+)(\d{1,2}:\d{2}(?:\u202f)?(?:\s)?(?:am|pm|AM|PM)) - ([^:]+): (.+)'
-
+    # Updated pattern to handle both 12 and 24-hour formats with flexible separators
+    pattern = r'(\d{1,2}/\d{1,2}/\d{2,4})(?:,\s*|\s+)(\d{1,2}:\d{2}(?:\u202f)?(?:\s)?(?:am|pm|AM|PM)?)\s*-\s*([^:]+): (.+)'
+    
     dates, times, senders, messages_text = [], [], [], []
     current_message = ""
 
     date_formats = [
-        '%m/%d/%y %I:%M %p',    # 12/30/24 8:31 PM
-        '%d/%m/%y %I:%M %p',    # 30/12/24 8:31 PM
-        '%m/%d/%Y %I:%M %p',    # 12/30/2024 8:31 PM
-        '%d/%m/%Y %I:%M %p',    # 30/12/2024 8:31 PM
-        '%d/%m/%Y %H:%M',       # 30/12/2024 20:31
-        '%Y-%m-%d %I:%M %p',    # 2024-12-30 8:31 PM
-        '%Y-%m-%d %H:%M',       # 2024-12-30 20:31
-        '%d.%m.%y %I:%M %p',    # 30.12.24 8:31 PM
-        '%d.%m.%Y %H:%M'        # 30.12.2024 20:31
+        '%d/%m/%y',     # 30/04/21
+        '%m/%d/%y',     # 12/30/24
+        '%d/%m/%Y',     # 30/04/2021
+        '%m/%d/%Y'      # 12/30/2024
+    ]
+    
+    time_formats = [
+        '%I:%M %p',    # 9:46 am
+        '%H:%M'        # 20:31
     ]
 
     for message in messages:
@@ -68,29 +69,41 @@ def process_chat_file(content):
 
             date_str, time_str, sender, text = match.groups()
             
-            # Standardize time format
-            time_str = time_str.strip().upper()
-            if 'AM' not in time_str and 'PM' not in time_str:
-                time_str += ' PM' if int(time_str.split(':')[0]) >= 8 else ' AM'
-            
-            date_time_str = f"{date_str} {time_str}"
-
-            parsed = False
+            # Try parsing date
+            parsed_date = None
             for fmt in date_formats:
                 try:
-                    dt = datetime.strptime(date_time_str, fmt)
-                    dates.append(dt.date())
-                    times.append(dt.time())
-                    senders.append(sender.strip())
-                    messages_text.append(text.strip())
-                    parsed = True
+                    parsed_date = datetime.strptime(date_str, fmt).date()
                     break
                 except ValueError:
                     continue
+                    
+            # Try parsing time
+            parsed_time = None
+            time_str = time_str.strip().lower()
+            
+            # Handle 24-hour format
+            if 'am' not in time_str and 'pm' not in time_str:
+                try:
+                    parsed_time = datetime.strptime(time_str, '%H:%M').time()
+                except ValueError:
+                    # If 24-hour parse fails, try as 12-hour morning time
+                    try:
+                        parsed_time = datetime.strptime(time_str + ' am', '%I:%M %p').time()
+                    except ValueError:
+                        continue
+            else:
+                # Handle 12-hour format
+                try:
+                    parsed_time = datetime.strptime(time_str, '%I:%M %p').time()
+                except ValueError:
+                    continue
 
-            if not parsed:
-                st.warning(f"Skipping message with invalid format: {date_time_str}")
-
+            if parsed_date and parsed_time:
+                dates.append(parsed_date)
+                times.append(parsed_time)
+                senders.append(sender.strip())
+                messages_text.append(text.strip())
         else:
             if messages_text and not message.startswith("Messages and calls are end-to-end encrypted"):
                 current_message += f" {message}"
@@ -280,12 +293,59 @@ def display_fun_insights(fun_insights):
     ))
 
 def analyze_first_messages(df):
-    # Group messages by date and get the first message for each day
+    """
+    🌅 Conversation Starter Analysis
+    - Groups messages by date using df.groupby('date')
+    - Gets first message each day with .first()
+    - Counts how often each person starts conversations
+    """
     df['date'] = pd.to_datetime(df['date'])
     first_messages = df.sort_values('time').groupby('date').first()
     first_message_counts = first_messages['sender'].value_counts()
-    
     return first_message_counts
+
+def analyze_response_times(df):
+    """
+    ⚡ Response Time Categories
+    Classifies message response speeds:
+    - Lightning: < 1 min
+    - Quick: < 5 mins
+    - Casual: < 30 mins  
+    - Relaxed: < 2 hours
+    - Internet Explorer: > 12 hours
+
+    Steps:
+    1. Sort messages by datetime
+    2. Calculate time difference between messages
+    3. Group by sender and categorize response speeds
+    """
+    # Define response categories
+    response_categories = {
+        'lightning': pd.Timedelta(minutes=1),
+        'quick': pd.Timedelta(minutes=5),
+        'casual': pd.Timedelta(minutes=30),
+        'relaxed': pd.Timedelta(hours=2),
+        'internet_explorer': pd.Timedelta(hours=12)
+    }
+    
+    # Calculate response times
+    df['datetime'] = pd.to_datetime(df['date'].astype(str) + ' ' + df['time'].astype(str))
+    df['response_time'] = df['datetime'].diff()
+    
+    # Categorize responses
+    response_styles = {}
+    for sender in df['sender'].unique():
+        sender_responses = df[df['sender'] == sender]['response_time']
+        response_counts = {
+            'lightning': len(sender_responses[sender_responses < response_categories['lightning']]),
+            'quick': len(sender_responses[sender_responses < response_categories['quick']]),
+            'casual': len(sender_responses[sender_responses < response_categories['casual']]),
+            'relaxed': len(sender_responses[sender_responses < response_categories['relaxed']]),
+            'internet_explorer': len(sender_responses[sender_responses >= response_categories['relaxed']])
+        }
+        response_styles[sender] = max(response_counts.items(), key=lambda x: x[1])
+    
+    return response_styles
 
 def create_first_message_chart(first_message_counts):
     fig = px.bar(
@@ -358,8 +418,18 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
             'internet_explorer': '🐌 INTERNET EXPLORER MODE'
         }
         text_parts.append(f"{style_emojis.get(style, '📱')} {friend}")
-    
-    # Rest of the function remains same
+
+    # Add explanations at the end
+    text_parts.append("\n📊 HOW IT'S CALCULATED")
+    text_parts.append("-------------------")
+    text_parts.append("🌅 Conversation Starter: First message of each day")
+    text_parts.append("⚡ Response Speed Categories:")
+    text_parts.append("⚡ SONIC SPEED: < 1 min")
+    text_parts.append("🏃 SPEEDY GONZALES: < 5 mins") 
+    text_parts.append("🚶 TAKING IT EASY: < 30 mins")
+    text_parts.append("🧘 ZEN MASTER: < 2 hours")
+    text_parts.append("🐌 INTERNET EXPLORER MODE: > 12 hours")
+
     return "\n".join(text_parts)
 
 def main():
