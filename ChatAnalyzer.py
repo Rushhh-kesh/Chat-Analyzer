@@ -448,107 +448,282 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
 
     return "\n".join(text_parts)
 
+def compare_chats(dataframes, names):
+    """Compare multiple chat analyses"""
+    comparison = {}
+    
+    # Message Volume Championship 🏆
+    total_messages = {name: len(df) for name, df in dataframes.items()}
+    comparison['total_messages'] = total_messages
+    
+    # Daily Chat Energy Level ⚡
+    daily_averages = {
+        name: len(df) / len(df['date'].unique())
+        for name, df in dataframes.items()
+    }
+    comparison['daily_averages'] = daily_averages
+    
+    # Emoji Party Power 🎭
+    def count_emojis(text):
+        return len([c for c in str(text) if c in emoji.EMOJI_DATA])
+    
+    emoji_rates = {
+        name: df['message'].apply(count_emojis).mean()
+        for name, df in dataframes.items()
+    }
+    comparison['emoji_rates'] = emoji_rates
+    
+    # Time Zone Warriors 🌍
+    active_hours = {}
+    for name, df in dataframes.items():
+        df['hour'] = df['time'].apply(lambda x: x.hour)
+        active_hours[name] = df['hour'].mode().iloc[0]
+    comparison['peak_hours'] = active_hours
+    
+    # Weekend Party Squad 🎉
+    weekend_rates = {}
+    for name, df in dataframes.items():
+        df['is_weekend'] = df['date'].apply(lambda x: x.weekday() >= 5)
+        weekend_rates[name] = df['is_weekend'].mean()
+    comparison['weekend_rates'] = weekend_rates
+    
+    return comparison
+
+def create_comparison_charts(comparison):
+    """Create fun visualizations for chat comparisons"""
+    charts = []
+    
+    # Message Volume Championship
+    fig_volume = px.bar(
+        x=list(comparison['total_messages'].keys()),
+        y=list(comparison['total_messages'].values()),
+        title="🏆 Message Volume Championship!",
+        labels={'x': 'Chat Squad', 'y': 'Total Messages'},
+        color=list(comparison['total_messages'].values()),
+        color_continuous_scale='Viridis'
+    )
+    charts.append(fig_volume)
+    
+    # Daily Chat Energy
+    fig_daily = px.bar(
+        x=list(comparison['daily_averages'].keys()),
+        y=list(comparison['daily_averages'].values()),
+        title="⚡ Daily Chat Energy Levels!",
+        labels={'x': 'Chat Squad', 'y': 'Messages per Day'},
+        color=list(comparison['daily_averages'].values()),
+        color_continuous_scale='Sunset'
+    )
+    charts.append(fig_daily)
+    
+    # Emoji Party Power
+    fig_emoji = px.bar(
+        x=list(comparison['emoji_rates'].keys()),
+        y=list(comparison['emoji_rates'].values()),
+        title="🎭 Emoji Party Power Rankings!",
+        labels={'x': 'Chat Squad', 'y': 'Emojis per Message'},
+        color=list(comparison['emoji_rates'].values()),
+        color_continuous_scale='Plasma'
+    )
+    charts.append(fig_emoji)
+    
+    return charts
+
+def create_comparison_summary(comparison):
+    """Create a fun summary of chat comparisons"""
+    summary = []
+    summary.append("🌟 ULTIMATE FRIENDSHIP SQUAD SHOWDOWN 🌟\n")
+    
+    # Message Volume Championship
+    most_messages = max(comparison['total_messages'].items(), key=lambda x: x[1])
+    summary.append("🏆 Message Volume Championship")
+    summary.append(f"👑 The Chat Champion: {most_messages[0]} with {most_messages[1]:,} messages!")
+    
+    # Daily Chat Energy
+    most_active = max(comparison['daily_averages'].items(), key=lambda x: x[1])
+    summary.append("\n⚡ Daily Chat Energy Award")
+    summary.append(f"💪 Most Energetic Squad: {most_active[0]} with {most_active[1]:.1f} messages per day!")
+    
+    # Emoji Party Power
+    emoji_master = max(comparison['emoji_rates'].items(), key=lambda x: x[1])
+    summary.append("\n🎭 Emoji Party Power")
+    summary.append(f"🎨 Emoji Master: {emoji_master[0]} with {emoji_master[1]:.2f} emojis per message!")
+    
+    # Time Zone Warriors
+    for name, hour in comparison['peak_hours'].items():
+        time_title = "Night Owl 🦉" if hour >= 20 or hour <= 4 else "Early Bird 🐤" if hour <= 8 else "Day Dweller 🌞"
+        summary.append(f"\n⏰ {name}'s Time Zone Personality: {time_title}")
+    
+    # Weekend Party Squad
+    weekend_champion = max(comparison['weekend_rates'].items(), key=lambda x: x[1])
+    summary.append("\n🎉 Weekend Party Squad")
+    summary.append(f"🎡 Weekend Warrior: {weekend_champion[0]} ({weekend_champion[1]:.1%} weekend activity)")
+    
+    return "\n".join(summary)
+
 def main():
     st.title("🤝 Chubby Buddy Chat Analyzer")
-    st.write("Let's settle who's the better friend with data! 📊")
+    st.write("Let's see who's winning at friendship! 📊")
     
-    uploaded_file = st.file_uploader("Drop Your Friendship Chronicles Here! 📱", type=['zip', 'txt'])
+    # Add analysis mode selector
+    analysis_mode = st.selectbox(
+        "Choose Your Friendship Analysis Adventure! 🎮",
+        ["Single Squad Analysis 👥", "Multi-Squad Showdown 🎭"]
+    )
     
-    if uploaded_file:
-        content = process_uploaded_file(uploaded_file)
-    
-        if content:
-            df = process_chat_file(content)
-            if df.empty:
-                st.error("No messages found! Are you sure this is a WhatsApp chat? 🤔")
-                return
+    if analysis_mode == "Single Squad Analysis 👥":
+        uploaded_file = st.file_uploader("Drop Your Friendship Chronicles Here! 📱", type=['zip', 'txt'])
+        
+        if uploaded_file:
+            content = process_uploaded_file(uploaded_file)
+        
+            if content:
+                df = process_chat_file(content)
+                if df.empty:
+                    st.error("No messages found! Are you sure this is a WhatsApp chat? 🤔")
+                    return
+                
+                insights = analyze_friendship(df)
+                fun_insights = create_fun_insights(insights, df)
+                first_message_counts = analyze_first_messages(df)
+                share_text = create_sharable_text(df, insights, fun_insights, first_message_counts)
+                
+                # Main visualizations
+                st.header("🏆 Friendship Stats!")
+                
+                # Add total messages count
+                total_messages = insights['message_counts'].sum()
+                st.metric("Message Mountain 📱 (Total Messages 💬)", f"{total_messages:,}")
+                
+                # Get top two participants
+                winner = insights['message_counts'].index[0]
+                runner_up = insights['message_counts'].index[1]
+                winner_count = insights['message_counts'].iloc[0]
+                runner_up_count = insights['message_counts'].iloc[1]
+                
+                st.subheader(f"And the Chattiest Friend Award goes to... 🥁")
+                st.write(f"🥇 {winner} with {winner_count:,} messages!🎉🎉🎉")
+                st.write(f"🥈 {runner_up} with {runner_up_count:,} messages!")
+                
+                fig_messages, fig_heatmap = create_visualizations(df, insights)
+                st.plotly_chart(fig_messages)
+                st.plotly_chart(fig_heatmap)
+                
+                st.subheader("🌅 The Conversation Kickstarter 🌟")
+        
+                # Get stats for both participants
+                first_starter = first_message_counts.index[0]
+                second_starter = first_message_counts.index[1]
+                first_count = first_message_counts.iloc[0]
+                second_count = first_message_counts.iloc[1]
+        
+                # Display both participants' stats
+                st.write(f"👑 {first_starter} initiated {first_count} conversations")
+                st.write(f"🌟 {second_starter} initiated {second_count} conversations")
+        
+                # Calculate and show percentages
+                total_days = first_count + second_count
+                first_percentage = (first_count / total_days) * 100
+                second_percentage = (second_count / total_days) * 100
+        
+                st.write(f"\nPercentage breakdown:")
+                st.write(f"- {first_starter}: {first_percentage:.1f}% of conversations")
+                st.write(f"- {second_starter}: {second_percentage:.1f}% of conversations")
+        
+                fig_first_messages = create_first_message_chart(first_message_counts)
+                st.plotly_chart(fig_first_messages)
+                
+                st.subheader("Emoji Personality Check 😊")
+                for sender, emojis in insights['emoji_usage'].items():
+                    if emojis:
+                        emoji_text = ' '.join([f"{emoji} ({count})" for emoji, count in emojis])
+                        st.write(f"✨ {sender}'s emoji favorites: {emoji_text}")
+                
+                if not insights['night_owl'].empty:
+                    st.subheader("🦉 Night Owl Champion")
+                    night_owl = insights['night_owl'].idxmax()
+                    st.write(f"🌙 {night_owl} is our nocturnal chat champion with {insights['night_owl'][night_owl]} late-night messages!")
+                
+                st.subheader("📝 Wordsmith Champion")
+                longest = insights['avg_message_length'].idxmax()
+                st.write(f"✍️ {longest} is our storyteller with an average of {insights['avg_message_length'][longest]:.1f} characters per message!")
+                
+                display_fun_insights(fun_insights)
+                
+                # Sharing section
+                st.subheader("📲 Share Your Friendship Story!")
+                st.code(share_text)
+                
+                if st.button("📋 Copy Friendship Stats!"):
+                    pyperclip.copy(share_text)
+                    st.success("Stats copied! Time to share your friendship story! 🎉")
+                
+    else:  # Multi-Squad Showdown mode
+        st.write("Time for the Ultimate Friendship Squad Showdown! 🎭")
+        uploaded_files = st.file_uploader(
+            "Upload Your Squad Chronicles! 📱",
+            type=['zip', 'txt'],
+            accept_multiple_files=True
+        )
+        
+        if uploaded_files:
+            # Process each file
+            dataframes = {}
+            for file in uploaded_files:
+                content = process_uploaded_file(file)
+                if content:
+                    df = process_chat_file(content)
+                    if not df.empty:
+                        # Let user provide a custom name for each chat
+                        chat_name = st.text_input(
+                            f"Give a fun name to {file.name}'s squad! 🎭",
+                            value=file.name.split('.')[0]
+                        )
+                        dataframes[chat_name] = df
             
-            insights = analyze_friendship(df)
-            fun_insights = create_fun_insights(insights, df)
-            first_message_counts = analyze_first_messages(df)
-            share_text = create_sharable_text(df, insights, fun_insights, first_message_counts)
-            
-            # Main visualizations
-            st.header("🏆 Friendship Stats!")
-            
-            # Add total messages count
-            total_messages = insights['message_counts'].sum()
-            st.metric("Message Mountain 📱 (Total Messages 💬)", f"{total_messages:,}")
-            
-            # Get top two participants
-            winner = insights['message_counts'].index[0]
-            runner_up = insights['message_counts'].index[1]
-            winner_count = insights['message_counts'].iloc[0]
-            runner_up_count = insights['message_counts'].iloc[1]
-            
-            st.subheader(f"And the Chattiest Friend Award goes to... 🥁")
-            st.write(f"🥇 {winner} with {winner_count:,} messages!🎉🎉🎉")
-            st.write(f"🥈 {runner_up} with {runner_up_count:,} messages!")
-
-            
-            fig_messages, fig_heatmap = create_visualizations(df, insights)
-            st.plotly_chart(fig_messages)
-            st.plotly_chart(fig_heatmap)
-            
-            first_message_counts = analyze_first_messages(df)
-            st.subheader("🌅 The Conversation Kickstarter 🌟")
-    
-            # Get stats for both participants
-            first_starter = first_message_counts.index[0]
-            second_starter = first_message_counts.index[1]
-            first_count = first_message_counts.iloc[0]
-            second_count = first_message_counts.iloc[1]
-    
-            # Display both participants' stats
-            st.write(f"👑 {first_starter} initiated {first_count} conversations")
-            st.write(f"🌟 {second_starter} initiated {second_count} conversations")
-    
-            # Calculate and show percentages
-            total_days = first_count + second_count
-            first_percentage = (first_count / total_days) * 100
-            second_percentage = (second_count / total_days) * 100
-    
-            st.write(f"\nPercentage breakdown:")
-            st.write(f"- {first_starter}: {first_percentage:.1f}% of conversations")
-            st.write(f"- {second_starter}: {second_percentage:.1f}% of conversations")
-    
-            fig_first_messages = create_first_message_chart(first_message_counts)
-            st.plotly_chart(fig_first_messages)
-            
-            st.subheader("Favorite Emojis 😊")
-            for sender, emojis in insights['emoji_usage'].items():
-                if emojis:
-                    emoji_text = ' '.join([f"{emoji} ({count})" for emoji, count in emojis])
-                    st.write(f"{sender}'s top emojis: {emoji_text}")
-            
-            if not insights['night_owl'].empty:
-                st.subheader("🦉 Night Owl Award")
-                night_owl = insights['night_owl'].idxmax()
-                st.write(f"{night_owl} is the night owl with {insights['night_owl'][night_owl]} late-night messages!")
-            
-            st.subheader("📝 Message Length Award")
-            longest = insights['avg_message_length'].idxmax()
-            st.write(f"{longest} writes the longest messages with an average of {insights['avg_message_length'][longest]:.1f} characters!")
-            
-            display_fun_insights(fun_insights)
-            
-            # Sharing section moved to end
-            st.subheader("Share Your Friendship Stats!")
-            st.code(share_text)
-            
-            # JavaScript for copy functionality
-            js_code = f"""
-            <script>
-            function copyToClipboard() {{
-                const text = `{share_text}`;
-                navigator.clipboard.writeText(text)
-                    .then(() => alert('Friendship stats copied! Ready to share! 🎉'))
-                    .catch(err => console.error('Failed to copy:', err));
-            }}
-            </script>
-            <button onclick="copyToClipboard()" style="background-color: #FF4B4B; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">📋 Copy Friendship Stats</button>
-            """
-            st.components.v1.html(js_code, height=50)
+            if dataframes:
+                st.header("🎭 Squad Showdown Results!")
+                
+                # Run comparison analysis
+                comparison = compare_chats(dataframes, list(dataframes.keys()))
+                
+                # Display total messages comparison
+                st.subheader("📊 Message Mountain Comparison")
+                total_messages = {name: len(df) for name, df in dataframes.items()}
+                champion = max(total_messages.items(), key=lambda x: x[1])
+                st.write(f"👑 Chat Champion: {champion[0]} with {champion[1]:,} messages!")
+                
+                # Display comparison charts
+                charts = create_comparison_charts(comparison)
+                for chart in charts:
+                    st.plotly_chart(chart)
+                
+                # Display fun summary
+                st.header("📊 The Ultimate Friendship Report!")
+                summary = create_comparison_summary(comparison)
+                st.markdown(summary)
+                
+                # Special achievements section
+                st.subheader("🏆 Special Squad Achievements!")
+                
+                # Most consistent squad
+                most_consistent = min(comparison['daily_averages'].items(), key=lambda x: abs(x[1] - sum(comparison['daily_averages'].values()) / len(comparison['daily_averages'])))
+                st.write(f"🎯 Most Consistent Squad: {most_consistent[0]}")
+                
+                # Emoji party champion
+                emoji_champion = max(comparison['emoji_rates'].items(), key=lambda x: x[1])
+                st.write(f"🎨 Emoji Party Champion: {emoji_champion[0]}")
+                
+                # Weekend warrior
+                weekend_champion = max(comparison['weekend_rates'].items(), key=lambda x: x[1])
+                st.write(f"🎉 Weekend Warrior Squad: {weekend_champion[0]}")
+                
+                # Add sharing option
+                st.subheader("Share the Squad Showdown! 🎉")
+                st.code(summary)
+                
+                if st.button("📋 Copy Squad Showdown Stats!"):
+                    pyperclip.copy(summary)
+                    st.success("Squad stats copied! Time to spread the fun! 🎉")
 
 if __name__ == "__main__":
     main()
