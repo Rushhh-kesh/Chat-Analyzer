@@ -564,7 +564,6 @@ def main():
     st.title("🤝 Chubby Buddy Chat Analyzer")
     st.write("Let's see who's winning at friendship! 📊")
     
-    # Add analysis mode selector
     analysis_mode = st.selectbox(
         "Choose Your Friendship Analysis Adventure! 🎮",
         ["Single Squad Analysis 👥", "Multi-Squad Showdown 🎭"]
@@ -603,7 +602,7 @@ def main():
                 st.subheader(f"And the Chattiest Friend Award goes to... 🥁")
                 st.write(f"🥇 {winner} with {winner_count:,} messages!🎉🎉🎉")
                 st.write(f"🥈 {runner_up} with {runner_up_count:,} messages!")
-                
+
                 fig_messages, fig_heatmap = create_visualizations(df, insights)
                 st.plotly_chart(fig_messages)
                 st.plotly_chart(fig_heatmap)
@@ -652,10 +651,25 @@ def main():
                 # Sharing section
                 st.subheader("📲 Share Your Friendship Story!")
                 st.code(share_text)
-                
-                if st.button("📋 Copy Friendship Stats!"):
-                    pyperclip.copy(share_text)
-                    st.success("Stats copied! Time to share your friendship story! 🎉")
+                st.components.v1.html(
+                    f"""
+                    <button
+                        onclick="navigator.clipboard.writeText(`{share_text}`);this.innerHTML='Copied! 🎉';"
+                        style="
+                            background-color: #FF4B4B;
+                            color: white;
+                            padding: 10px 20px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            margin: 10px 0;
+                        "
+                    >
+                        📋 Copy Friendship Stats
+                    </button>
+                    """,
+                    height=50
+                )
                 
     else:  # Multi-Squad Showdown mode
         st.write("Time for the Ultimate Friendship Squad Showdown! 🎭")
@@ -665,22 +679,22 @@ def main():
             accept_multiple_files=True
         )
         
-        if uploaded_files:
-            # Process each file
+        if uploaded_files and len(uploaded_files) >= 2:
             dataframes = {}
+            
+            # Process each file
             for file in uploaded_files:
                 content = process_uploaded_file(file)
                 if content:
                     df = process_chat_file(content)
                     if not df.empty:
-                        # Let user provide a custom name for each chat
                         chat_name = st.text_input(
                             f"Give a fun name to {file.name}'s squad! 🎭",
                             value=file.name.split('.')[0]
                         )
                         dataframes[chat_name] = df
             
-            if dataframes:
+            if len(dataframes) >= 2:
                 st.header("🎭 Squad Showdown Results!")
                 
                 # Run comparison analysis
@@ -706,7 +720,8 @@ def main():
                 st.subheader("🏆 Special Squad Achievements!")
                 
                 # Most consistent squad
-                most_consistent = min(comparison['daily_averages'].items(), key=lambda x: abs(x[1] - sum(comparison['daily_averages'].values()) / len(comparison['daily_averages'])))
+                most_consistent = min(comparison['daily_averages'].items(), 
+                                    key=lambda x: abs(x[1] - sum(comparison['daily_averages'].values()) / len(comparison['daily_averages'])))
                 st.write(f"🎯 Most Consistent Squad: {most_consistent[0]}")
                 
                 # Emoji party champion
@@ -720,10 +735,27 @@ def main():
                 # Add sharing option
                 st.subheader("Share the Squad Showdown! 🎉")
                 st.code(summary)
-                
-                if st.button("📋 Copy Squad Showdown Stats!"):
-                    pyperclip.copy(summary)
-                    st.success("Squad stats copied! Time to spread the fun! 🎉")
+                st.components.v1.html(
+                    f"""
+                    <button
+                        onclick="navigator.clipboard.writeText(`{summary}`);this.innerHTML='Copied! 🎉';"
+                        style="
+                            background-color: #FF4B4B;
+                            color: white;
+                            padding: 10px 20px;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            margin: 10px 0;
+                        "
+                    >
+                        📋 Copy Squad Showdown Stats
+                    </button>
+                    """,
+                    height=50
+                )
+        elif uploaded_files:
+            st.warning("Hey buddy! We need at least 2 chat files for a proper Squad Showdown! 🎭")
 
 if __name__ == "__main__":
     main()
