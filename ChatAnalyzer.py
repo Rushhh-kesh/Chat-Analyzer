@@ -380,12 +380,380 @@ def process_uploaded_file(uploaded_file):
         except Exception as e:
             st.error(f"Error processing TXT file: {str(e)}")
             return None
+
+def compare_chats(dataframes, names):
+    """Compare multiple chat analyses with emoji metrics"""
+    comparison = {}
+    
+    # Message Volume by Participant
+    participant_messages = {}
+    for name, df in dataframes.items():
+        participant_messages[name] = df['sender'].value_counts().to_dict()
+    comparison['participant_messages'] = participant_messages
+    
+    # Daily Chat Energy Level
+    daily_averages = {
+        name: len(df) / len(df['date'].unique())
+        for name, df in dataframes.items()
+    }
+    comparison['daily_averages'] = daily_averages
+    
+    # Daily Activity Patterns
+    hourly_patterns = {}
+    for name, df in dataframes.items():
+        df['hour'] = df['time'].apply(lambda x: x.hour)
+        hourly_patterns[name] = df.groupby('hour').size()
+    comparison['hourly_patterns'] = hourly_patterns
+    
+    # Emoji Analysis
+    def extract_emojis(text):
+        return ''.join(c for c in str(text) if c in emoji.EMOJI_DATA)
+    
+    emoji_usage = {}
+    emoji_rates = {}
+    for name, df in dataframes.items():
+        emoji_usage[name] = {}
+        total_emojis = 0
+        total_messages = len(df)
         
+        for sender in df['sender'].unique():
+            sender_messages = df[df['sender'] == sender]['message']
+            emojis = []
+            for msg in sender_messages:
+                msg_emojis = list(extract_emojis(msg))
+                emojis.extend(msg_emojis)
+                total_emojis += len(msg_emojis)
+            emoji_usage[name][sender] = Counter(emojis).most_common(5)
+        
+        emoji_rates[name] = total_emojis / total_messages if total_messages > 0 else 0
+    
+    comparison['emoji_usage'] = emoji_usage
+    comparison['emoji_rates'] = emoji_rates
+    
+    # Weekend Analysis
+    weekend_rates = {}
+    for name, df in dataframes.items():
+        df['is_weekend'] = df['date'].apply(lambda x: x.weekday() >= 5)
+        weekend_rates[name] = df['is_weekend'].mean()
+    comparison['weekend_rates'] = weekend_rates
+    
+    # Interesting Facts
+    facts = {}
+    for name, df in dataframes.items():
+        facts[name] = {
+            'busiest_day': df.groupby('date').size().idxmax(),
+            'busiest_day_messages': df.groupby('date').size().max(),
+            'most_active_hour': df['hour'].mode().iloc[0],
+            'longest_message_length': df['message'].str.len().max(),
+            'avg_message_length': df['message'].str.len().mean(),
+            'total_days': len(df['date'].unique()),
+            'participant_stats': {
+                sender: {
+                    'total_messages': len(df[df['sender'] == sender]),
+                    'avg_length': df[df['sender'] == sender]['message'].str.len().mean(),
+                    'messages_per_day': len(df[df['sender'] == sender]) / len(df['date'].unique())
+                }
+                for sender in df['sender'].unique()
+            }
+        }
+    comparison['facts'] = facts
+    
+    return comparison
+
+def create_comparison_charts(comparison):
+    """Create visualizations for chat comparisons"""
+    charts = []
+    
+    # Message Volume by Participant
+    participant_data = []
+    for chat_name, participants in comparison['participant_messages'].items():
+        for participant, count in participants.items():
+            participant_data.append({
+                'Chat': chat_name,
+                'Participant': participant,
+                'Messages': count
+            })
+    
+    df_participants = pd.DataFrame(participant_data)
+    fig_participants = px.bar(
+        df_participants,
+        x='Chat',
+        y='Messages',
+        color='Participant',
+        title="👥 Message Count by Participant",
+        barmode='group'
+    )
+    charts.append(fig_participants)
+    
+    # Daily Activity Patterns
+    hourly_data = pd.DataFrame(comparison['hourly_patterns'])
+    fig_hourly = px.line(
+        hourly_data,
+        title="📊 Daily Activity Patterns",
+        labels={'value': 'Message Count', 'index': 'Hour of Day'},
+        markers=True
+    )
+    fig_hourly.update_layout(
+        xaxis_title="Hour of Day",
+        yaxis_title="Message Count",
+        showlegend=True
+    )
+    charts.append(fig_hourly)
+    
+    return charts
+
+def create_comparison_summary(comparison):
+    """Create updated summary with emoji stats"""
+    summary = []
+    summary.append("🌟 SQUAD SHOWDOWN INSIGHTS 🌟\n")
+    
+    # Participant Message Counts and Stats
+    for chat_name, facts in comparison['facts'].items():
+        summary.append(f"\n📱 {chat_name} Squad Breakdown:")
+        for participant, stats in facts['participant_stats'].items():
+            summary.append(f"\n{participant}:")
+            summary.append(f"- 💬 Total messages: {stats['total_messages']:,}")
+            summary.append(f"- 📊 Messages per day: {stats['messages_per_day']:.1f}")
+            summary.append(f"- 📝 Average length: {stats['avg_length']:.1f} characters")
+            
+            # Add emoji stats
+            if chat_name in comparison['emoji_usage'] and participant in comparison['emoji_usage'][chat_name]:
+                emoji_stats = comparison['emoji_usage'][chat_name][participant]
+                if emoji_stats:
+                    emoji_text = ' '.join([f"{emoji}({count})" for emoji, count in emoji_stats[:3]])
+                    summary.append(f"- 😊 Top emojis: {emoji_text}")
+    
+    # General Chat Stats
+    summary.append("\n🎯 Chat Highlights")
+    for name, facts in comparison['facts'].items():
+        summary.append(f"\n{name}:")
+        summary.append(f"- 🔥 Busiest day: {facts['busiest_day'].strftime('%Y-%m-%d')} ({facts['busiest_day_messages']} messages)")
+        summary.append(f"- ⏰ Peak activity: {facts['most_active_hour']:02d}:00")
+        summary.append(f"- 📅 Total days: {facts['total_days']}")
+    
+    return "\n".join(summary)
+
+def display_chat_highlights(highlights):
+    """Display chat highlights in the Streamlit interface."""
+    st.header("🎯 Chat Highlights!")
+    
+    # Most Active Day
+    if 'most_active_day' in highlights:
+        active = highlights['most_active_day']
+        st.write("\n🔥 Busiest Day")
+        st.write(f"- 📅 Date: {active['date'].strftime('%B %d, %Y')}")
+        st.write(f"- 💬 Message Count: {active['messages']:,} messages")
+        st.write(f"- 👥 Squad Members: {', '.join(active['participants'])}")
+    
+    # Longest Conversation
+    if 'longest_conversation' in highlights:
+        convo = highlights['longest_conversation']
+        st.write("\n🗣️ Epic Chat Marathon")
+        st.write(f"- 💫 {convo['messages']:,} messages in {convo['duration'].total_seconds()/60:.0f} minutes!")
+        st.write(f"- 📅 Date: {convo['date'].strftime('%B %d, %Y')}")
+        st.write(f"- 👥 Squad Members: {', '.join(convo['participants'])}")
+    
+    # Longest Messages Champions
+    if 'longest_messages' in highlights:
+        st.write("\n📝 Message Length Champions")
+        for sender, msg_data in highlights['longest_messages'].items():
+            st.write(f"- ✨ {sender}: {msg_data['length']:,} characters on {msg_data['date'].strftime('%B %d, %Y')}")
+
+def analyze_chat_highlights(df):
+    """Analyze notable moments and patterns in chat history."""
+    highlights = {}
+    
+    # Longest conversation (most back-and-forth in 30 min window)
+    df['datetime'] = pd.to_datetime(df['date'].astype(str) + ' ' + df['time'].astype(str))
+    df['timediff'] = df['datetime'].diff()
+    conversation_window = pd.Timedelta(minutes=30)
+    
+    current_convo = []
+    conversations = []
+    
+    for i in range(1, len(df)):
+        if df['timediff'].iloc[i] <= conversation_window:
+            if not current_convo:
+                current_convo.append(df.iloc[i-1])
+            current_convo.append(df.iloc[i])
+        else:
+            if current_convo:
+                conversations.append(current_convo)
+                current_convo = []
+    
+    if current_convo:
+        conversations.append(current_convo)
+    
+    if conversations:
+        longest_convo = max(conversations, key=len)
+        highlights['longest_conversation'] = {
+            'messages': len(longest_convo),
+            'date': longest_convo[0]['date'],
+            'duration': (longest_convo[-1]['datetime'] - longest_convo[0]['datetime']),
+            'participants': list(set(msg['sender'] for msg in longest_convo))
+        }
+    
+    # Most active day
+    daily_counts = df.groupby('date').size()
+    most_active_day = daily_counts.idxmax()
+    highlights['most_active_day'] = {
+        'date': most_active_day,
+        'messages': daily_counts[most_active_day],
+        'participants': list(df[df['date'] == most_active_day]['sender'].unique())
+    }
+    
+    # Longest message by each participant
+    longest_messages = {}
+    for sender in df['sender'].unique():
+        sender_messages = df[df['sender'] == sender]
+        longest_idx = sender_messages['message'].str.len().idxmax()
+        longest_messages[sender] = {
+            'message': df.loc[longest_idx, 'message'],
+            'length': len(df.loc[longest_idx, 'message']),
+            'date': df.loc[longest_idx, 'date']
+        }
+    highlights['longest_messages'] = longest_messages
+    
+    return highlights
+
+def analyze_extended_metrics(df):
+    """
+    Analyze additional chat metrics including typing marathons, funny messages,
+    speed records, and longest gaps.
+    """
+    extended_metrics = {}
+    
+    # Prepare datetime for analysis
+    df['datetime'] = pd.to_datetime(df['date'].astype(str) + ' ' + df['time'].astype(str))
+    df['timediff'] = df['datetime'].diff()
+    
+    # 1. Longest Typing Marathon (messages in quick succession by same person)
+    marathon_window = pd.Timedelta(minutes=5)  # Define quick succession as within 5 minutes
+    current_marathon = []
+    marathons = []
+    
+    for i in range(1, len(df)):
+        current_sender = df.iloc[i]['sender']
+        prev_sender = df.iloc[i-1]['sender']
+        
+        if (current_sender == prev_sender and 
+            df['timediff'].iloc[i] <= marathon_window):
+            if not current_marathon:
+                current_marathon.append(df.iloc[i-1])
+            current_marathon.append(df.iloc[i])
+        else:
+            if current_marathon:
+                marathons.append(current_marathon)
+                current_marathon = []
+    
+    if marathons:
+        longest_marathon = max(marathons, key=len)
+        extended_metrics['typing_marathon'] = {
+            'sender': longest_marathon[0]['sender'],
+            'messages': len(longest_marathon),
+            'date': longest_marathon[0]['date'],
+            'duration': (longest_marathon[-1]['datetime'] - longest_marathon[0]['datetime'])
+        }
+    
+    # 2. Speed Records (fastest replies)
+    min_reply_time = pd.Timedelta(seconds=1)  # Exclude instantaneous replies
+    speed_records = {}
+    
+    for sender in df['sender'].unique():
+        sender_replies = df[
+            (df['sender'] == sender) & 
+            (df['timediff'] > min_reply_time)
+        ]['timediff']
+        
+        if not sender_replies.empty:
+            fastest_reply = sender_replies.min()
+            fastest_idx = df[df['timediff'] == fastest_reply].index[0]
+            speed_records[sender] = {
+                'time': fastest_reply,
+                'date': df.loc[fastest_idx, 'date'],
+                'message': df.loc[fastest_idx, 'message']
+            }
+    
+    extended_metrics['speed_records'] = speed_records
+    
+    # 3. Longest Time Without Reply
+    max_gap = df['timediff'].max()
+    gap_idx = df['timediff'].idxmax()
+    if pd.notnull(max_gap):
+        extended_metrics['longest_gap'] = {
+            'duration': max_gap,
+            'date': df.loc[gap_idx, 'date'],
+            'next_sender': df.loc[gap_idx, 'sender'],
+            'prev_sender': df.loc[gap_idx-1, 'sender'] if gap_idx > 0 else None
+        }
+    
+    # 4. Funny Messages (messages with 'haha', 'lol', '😂', etc.)
+    funny_indicators = ['haha', 'lol', '😂', '🤣', 'lmao', 'rofl']
+    funny_messages = {}
+    
+    for sender in df['sender'].unique():
+        sender_messages = df[df['sender'] == sender]['message']
+        funny_count = 0
+        for msg in sender_messages:
+            if any(indicator in msg.lower() for indicator in funny_indicators):
+                funny_count += 1
+        
+        if funny_count > 0:
+            funny_messages[sender] = {
+                'count': funny_count,
+                'percentage': (funny_count / len(sender_messages)) * 100
+            }
+    
+    extended_metrics['funny_messages'] = funny_messages
+    
+    return extended_metrics
+
+def display_extended_metrics(extended_metrics):
+    """Display the extended metrics in a friendly format."""
+    st.header("🎯 More Fun Chat Stats!")
+    
+    # 1. Typing Marathon
+    if 'typing_marathon' in extended_metrics:
+        marathon = extended_metrics['typing_marathon']
+        st.subheader("⌨️ Typing Marathon Champion")
+        st.write(f"🏃 {marathon['sender']} went on a typing spree with {marathon['messages']} messages")
+        st.write(f"📅 Date: {marathon['date'].strftime('%B %d, %Y')}")
+        st.write(f"⏱️ Duration: {marathon['duration'].total_seconds() / 60:.1f} minutes")
+    
+    # 2. Speed Records
+    if 'speed_records' in extended_metrics:
+        st.subheader("⚡ Speed Demons (Fastest Replies)")
+        for sender, record in extended_metrics['speed_records'].items():
+            seconds = record['time'].total_seconds()
+            st.write(f"🏃 {sender}: {seconds:.1f} seconds")
+            st.write(f"📅 Achievement unlocked on: {record['date'].strftime('%B %d, %Y')}")
+    
+    # 3. Longest Gap
+    if 'longest_gap' in extended_metrics:
+        gap = extended_metrics['longest_gap']
+        st.subheader("🕒 The Great Silence")
+        days = gap['duration'].total_seconds() / (24 * 3600)
+        st.write(f"⏳ {days:.1f} days of silence")
+        st.write(f"📅 Starting: {gap['date'].strftime('%B %d, %Y')}")
+        if gap['prev_sender'] and gap['next_sender']:
+            st.write(f"👥 From {gap['prev_sender']} to {gap['next_sender']}")
+    
+    # 4. Funny Messages
+    if 'funny_messages' in extended_metrics:
+        st.subheader("😂 Laughter Analytics")
+        for sender, stats in extended_metrics['funny_messages'].items():
+            st.write(f"😄 {sender}:")
+            st.write(f"- 🎯 {stats['count']} funny messages")
+            st.write(f"- 📊 {stats['percentage']:.1f}% of their messages contain laughter")
+                    
 def create_sharable_text(df, insights, fun_insights, first_message_counts):
+    # First, get the extended metrics
+    extended_metrics = analyze_extended_metrics(df)
+    
     text_parts = []
     
-    text_parts.append("🎭 ULTIMATE CHUBBY BUDDY FRIENDSHIP REPORT 🎭\n")
-    text_parts.append("(Generated by the Chubby Buddy Friendship Analyzer LOVE YOUR FRIEND 3000+)\n")
+    text_parts.append("🎭 ULTIMATE ChatWrap FRIENDSHIP REPORT 🎭\n")
+    text_parts.append("(Generated by the ChatWrap Friendship Analyzer LOVE YOUR FRIEND 3000+)\n")
     
     # Message Count Stats
     text_parts.append("\n📱 THE BIG NUMBERS SHOWDOWN")
@@ -434,6 +802,113 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
         }
         text_parts.append(f"{style_emojis.get(style, '📱')} {friend}")
 
+    # Add Chat Highlights Section
+    highlights = analyze_chat_highlights(df)
+    text_parts.append("\n🎯 CHAT HIGHLIGHTS")
+    text_parts.append("-------------------")
+
+    # Most Active Day
+    if 'most_active_day' in highlights:
+        active = highlights['most_active_day']
+        text_parts.append(f"🔥 Most Active Day: {active['date'].strftime('%B %d, %Y')} with {active['messages']} messages")
+
+    # Longest Conversation
+    if 'longest_conversation' in highlights:
+        convo = highlights['longest_conversation']
+        text_parts.append(f"🗣️ Longest Conversation: {convo['messages']} messages over {convo['duration'].total_seconds() // 60:.0f} minutes on {convo['date'].strftime('%B %d, %Y')}")
+
+    # Longest Messages Champions
+    if 'longest_messages' in highlights:
+        text_parts.append("\n📝 Longest Messages")
+        for sender, msg_data in highlights['longest_messages'].items():
+            text_parts.append(f"- ✨ {sender}: {msg_data['length']} characters on {msg_data['date'].strftime('%B %d, %Y')}")
+
+    if extended_metrics:
+        text_parts.append("\n🎯 EXTENDED CHAT STATS")
+        text_parts.append("--------------------")
+
+        # 1. Typing Marathon Stats
+        text_parts.append("\n⌨️ TYPING MARATHON HIGHLIGHTS")
+        if 'typing_marathon' in extended_metrics:
+            marathon = extended_metrics['typing_marathon']
+            text_parts.append(f"🏃 Marathon Champion: {marathon['sender']}")
+            text_parts.append(f"📊 Epic Stats:")
+            text_parts.append(f"   - Messages in streak: {marathon['messages']}")
+            text_parts.append(f"   - Duration: {marathon['duration'].total_seconds() / 60:.1f} minutes")
+            text_parts.append(f"   - Date: {marathon['date'].strftime('%B %d, %Y')}")
+            text_parts.append(f"   - Messages per minute: {marathon['messages'] / (marathon['duration'].total_seconds() / 60):.1f}")
+
+        # 2. Speed Records - Detailed Breakdown
+        text_parts.append("\n⚡ SPEED DEMONS LEADERBOARD")
+        if 'speed_records' in extended_metrics:
+            for sender, record in extended_metrics['speed_records'].items():
+                seconds = record['time'].total_seconds()
+                text_parts.append(f"\n🏃 {sender}'s Speed Profile:")
+                text_parts.append(f"   - Fastest reply: {seconds:.1f} seconds")
+                text_parts.append(f"   - Achievement date: {record['date'].strftime('%B %d, %Y')}")
+                if len(record['message']) > 50:
+                    text_parts.append(f"   - The speedy message: {record['message'][:50]}...")
+                else:
+                    text_parts.append(f"   - The speedy message: {record['message']}")
+
+        # 3. Chat Gaps Analysis
+        text_parts.append("\n🕒 THE GREAT SILENCE ANALYSIS")
+        if 'longest_gap' in extended_metrics:
+            gap = extended_metrics['longest_gap']
+            days = gap['duration'].total_seconds() / (24 * 3600)
+            hours = (days - int(days)) * 24
+            text_parts.append(f"\n⏳ Longest Gap Details:")
+            text_parts.append(f"   - Duration: {int(days)} days and {int(hours)} hours")
+            text_parts.append(f"   - Ended: {gap['date'].strftime('%B %d, %Y')}")
+            if gap['prev_sender'] and gap['next_sender']:
+                text_parts.append(f"   - Last message by: {gap['prev_sender']}")
+                text_parts.append(f"   - Silence broken by: {gap['next_sender']}")
+
+        # 4. Laughter and Fun Analysis
+        text_parts.append("\n😂 LAUGHTER & FUN METRICS")
+        if 'funny_messages' in extended_metrics:
+            text_parts.append("\n🎭 Humor Profile:")
+            for sender, stats in extended_metrics['funny_messages'].items():
+                text_parts.append(f"\n😄 {sender}'s Fun Stats:")
+                text_parts.append(f"   - Total fun messages: {stats['count']}")
+                text_parts.append(f"   - Fun percentage: {stats['percentage']:.1f}%")
+                text_parts.append(f"   - That's {stats['count'] / len(df[df['sender'] == sender]) * 100:.1f}% of their total messages!")
+                
+        # 5. Time Distribution Analysis
+        text_parts.append("\n⏰ MESSAGING TIME PATTERNS")
+        for sender in df['sender'].unique():
+            sender_df = df[df['sender'] == sender]
+            sender_df['hour'] = sender_df['time'].apply(lambda x: x.hour)
+            
+            # Peak hour analysis
+            hour_counts = sender_df['hour'].value_counts()
+            peak_hour = hour_counts.index[0]
+            peak_count = hour_counts.iloc[0]
+            
+            text_parts.append(f"\n🌟 {sender}'s Time Profile:")
+            text_parts.append(f"   - Peak activity hour: {peak_hour:02d}:00")
+            text_parts.append(f"   - Messages at peak hour: {peak_count}")
+            
+            # Morning/Night ratio
+            morning_messages = len(sender_df[sender_df['hour'].between(6, 11)])
+            night_messages = len(sender_df[sender_df['hour'].between(22, 5)])
+            total_messages = len(sender_df)
+            
+            text_parts.append(f"   - Morning person score: {morning_messages/total_messages*100:.1f}%")
+            text_parts.append(f"   - Night owl score: {night_messages/total_messages*100:.1f}%")
+
+        # 6. Message Length Analysis
+        text_parts.append("\n📝 MESSAGE LENGTH METRICS")
+        for sender in df['sender'].unique():
+            sender_messages = df[df['sender'] == sender]['message']
+            lengths = [len(msg) for msg in sender_messages]
+            
+            text_parts.append(f"\n✍️ {sender}'s Writing Style:")
+            text_parts.append(f"   - Longest message: {max(lengths)} characters")
+            text_parts.append(f"   - Average length: {sum(lengths)/len(lengths):.1f} characters")
+            text_parts.append(f"   - Short messages (<50 chars): {sum(1 for l in lengths if l < 50)} messages")
+            text_parts.append(f"   - Long messages (>200 chars): {sum(1 for l in lengths if l > 200)} messages")
+        
     # Add explanations at the end
     text_parts.append("\n📊 HOW IT'S CALCULATED")
     text_parts.append("-------------------")
@@ -448,120 +923,8 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
 
     return "\n".join(text_parts)
 
-def compare_chats(dataframes, names):
-    """Compare multiple chat analyses"""
-    comparison = {}
-    
-    # Message Volume Championship 🏆
-    total_messages = {name: len(df) for name, df in dataframes.items()}
-    comparison['total_messages'] = total_messages
-    
-    # Daily Chat Energy Level ⚡
-    daily_averages = {
-        name: len(df) / len(df['date'].unique())
-        for name, df in dataframes.items()
-    }
-    comparison['daily_averages'] = daily_averages
-    
-    # Emoji Party Power 🎭
-    def count_emojis(text):
-        return len([c for c in str(text) if c in emoji.EMOJI_DATA])
-    
-    emoji_rates = {
-        name: df['message'].apply(count_emojis).mean()
-        for name, df in dataframes.items()
-    }
-    comparison['emoji_rates'] = emoji_rates
-    
-    # Time Zone Warriors 🌍
-    active_hours = {}
-    for name, df in dataframes.items():
-        df['hour'] = df['time'].apply(lambda x: x.hour)
-        active_hours[name] = df['hour'].mode().iloc[0]
-    comparison['peak_hours'] = active_hours
-    
-    # Weekend Party Squad 🎉
-    weekend_rates = {}
-    for name, df in dataframes.items():
-        df['is_weekend'] = df['date'].apply(lambda x: x.weekday() >= 5)
-        weekend_rates[name] = df['is_weekend'].mean()
-    comparison['weekend_rates'] = weekend_rates
-    
-    return comparison
-
-def create_comparison_charts(comparison):
-    """Create fun visualizations for chat comparisons"""
-    charts = []
-    
-    # Message Volume Championship
-    fig_volume = px.bar(
-        x=list(comparison['total_messages'].keys()),
-        y=list(comparison['total_messages'].values()),
-        title="🏆 Message Volume Championship!",
-        labels={'x': 'Chat Squad', 'y': 'Total Messages'},
-        color=list(comparison['total_messages'].values()),
-        color_continuous_scale='Viridis'
-    )
-    charts.append(fig_volume)
-    
-    # Daily Chat Energy
-    fig_daily = px.bar(
-        x=list(comparison['daily_averages'].keys()),
-        y=list(comparison['daily_averages'].values()),
-        title="⚡ Daily Chat Energy Levels!",
-        labels={'x': 'Chat Squad', 'y': 'Messages per Day'},
-        color=list(comparison['daily_averages'].values()),
-        color_continuous_scale='Sunset'
-    )
-    charts.append(fig_daily)
-    
-    # Emoji Party Power
-    fig_emoji = px.bar(
-        x=list(comparison['emoji_rates'].keys()),
-        y=list(comparison['emoji_rates'].values()),
-        title="🎭 Emoji Party Power Rankings!",
-        labels={'x': 'Chat Squad', 'y': 'Emojis per Message'},
-        color=list(comparison['emoji_rates'].values()),
-        color_continuous_scale='Plasma'
-    )
-    charts.append(fig_emoji)
-    
-    return charts
-
-def create_comparison_summary(comparison):
-    """Create a fun summary of chat comparisons"""
-    summary = []
-    summary.append("🌟 ULTIMATE FRIENDSHIP SQUAD SHOWDOWN 🌟\n")
-    
-    # Message Volume Championship
-    most_messages = max(comparison['total_messages'].items(), key=lambda x: x[1])
-    summary.append("🏆 Message Volume Championship")
-    summary.append(f"👑 The Chat Champion: {most_messages[0]} with {most_messages[1]:,} messages!")
-    
-    # Daily Chat Energy
-    most_active = max(comparison['daily_averages'].items(), key=lambda x: x[1])
-    summary.append("\n⚡ Daily Chat Energy Award")
-    summary.append(f"💪 Most Energetic Squad: {most_active[0]} with {most_active[1]:.1f} messages per day!")
-    
-    # Emoji Party Power
-    emoji_master = max(comparison['emoji_rates'].items(), key=lambda x: x[1])
-    summary.append("\n🎭 Emoji Party Power")
-    summary.append(f"🎨 Emoji Master: {emoji_master[0]} with {emoji_master[1]:.2f} emojis per message!")
-    
-    # Time Zone Warriors
-    for name, hour in comparison['peak_hours'].items():
-        time_title = "Night Owl 🦉" if hour >= 20 or hour <= 4 else "Early Bird 🐤" if hour <= 8 else "Day Dweller 🌞"
-        summary.append(f"\n⏰ {name}'s Time Zone Personality: {time_title}")
-    
-    # Weekend Party Squad
-    weekend_champion = max(comparison['weekend_rates'].items(), key=lambda x: x[1])
-    summary.append("\n🎉 Weekend Party Squad")
-    summary.append(f"🎡 Weekend Warrior: {weekend_champion[0]} ({weekend_champion[1]:.1%} weekend activity)")
-    
-    return "\n".join(summary)
-
 def main():
-    st.title("🤝 Chubby Buddy Chat Analyzer")
+    st.title("🤝 ChatWrap Chat Analyzer")
     st.write("Let's see who's winning at friendship! 📊")
     
     analysis_mode = st.selectbox(
@@ -585,7 +948,7 @@ def main():
                 fun_insights = create_fun_insights(insights, df)
                 first_message_counts = analyze_first_messages(df)
                 share_text = create_sharable_text(df, insights, fun_insights, first_message_counts)
-                
+
                 # Main visualizations
                 st.header("🏆 Friendship Stats!")
                 
@@ -646,8 +1009,12 @@ def main():
                 longest = insights['avg_message_length'].idxmax()
                 st.write(f"✍️ {longest} is our storyteller with an average of {insights['avg_message_length'][longest]:.1f} characters per message!")
                 
-                display_fun_insights(fun_insights)
-                
+                display_fun_insights(fun_insights)               
+                highlights = analyze_chat_highlights(df)
+                display_chat_highlights(highlights)
+                extended_metrics = analyze_extended_metrics(df)    
+                display_extended_metrics(extended_metrics)  
+                                
                 # Sharing section
                 st.subheader("📲 Share Your Friendship Story!")
                 st.code(share_text)
@@ -712,7 +1079,7 @@ def main():
                     st.plotly_chart(chart)
                 
                 # Display fun summary
-                st.header("📊 The Ultimate Friendship Report!")
+                st.header("📊 The Ultimate Friendship Showdown!")
                 summary = create_comparison_summary(comparison)
                 st.markdown(summary)
                 
