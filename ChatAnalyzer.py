@@ -489,7 +489,7 @@ def create_comparison_charts(comparison):
     hourly_data = pd.DataFrame(comparison['hourly_patterns'])
     fig_hourly = px.line(
         hourly_data,
-        title="📊 Daily Activity Patterns",
+        title="📊 When We're In Our Element ⚡️",
         labels={'value': 'Message Count', 'index': 'Hour of Day'},
         markers=True
     )
@@ -524,23 +524,23 @@ def create_comparison_summary(comparison):
                     summary.append(f"- 😊 Top emojis: {emoji_text}")
     
     # General Chat Stats
-    summary.append("\n🎯 Chat Highlights")
+    summary.append("\n🎯 Main Character Moments ✨")
     for name, facts in comparison['facts'].items():
         summary.append(f"\n{name}:")
-        summary.append(f"- 🔥 Busiest day: {facts['busiest_day'].strftime('%Y-%m-%d')} ({facts['busiest_day_messages']} messages)")
+        summary.append(f"- When We Popped Off 💅✨: {facts['busiest_day'].strftime('%Y-%m-%d')} ({facts['busiest_day_messages']} messages)")
         summary.append(f"- ⏰ Peak activity: {facts['most_active_hour']:02d}:00")
         summary.append(f"- 📅 Total days: {facts['total_days']}")
     
     return "\n".join(summary)
 
 def display_chat_highlights(highlights):
-    """Display chat highlights in the Streamlit interface."""
-    st.header("🎯 Chat Highlights!")
+    """Display Main Character Moments ✨ in the Streamlit interface."""
+    st.header("🎯 Main Character Moments ✨!")
     
     # Most Active Day
     if 'most_active_day' in highlights:
         active = highlights['most_active_day']
-        st.write("\n🔥 Busiest Day")
+        st.write("\nWhen We Popped Off 💅✨")
         st.write(f"- 📅 Date: {active['date'].strftime('%B %d, %Y')}")
         st.write(f"- 💬 Message Count: {active['messages']:,} messages")
         st.write(f"- 👥 Squad Members: {', '.join(active['participants'])}")
@@ -548,7 +548,7 @@ def display_chat_highlights(highlights):
     # Longest Conversation
     if 'longest_conversation' in highlights:
         convo = highlights['longest_conversation']
-        st.write("\n🗣️ Epic Chat Marathon")
+        st.write("\nNon-Stop Bestie Hours 🔄✨")
         st.write(f"- 💫 {convo['messages']:,} messages in {convo['duration'].total_seconds()/60:.0f} minutes!")
         st.write(f"- 📅 Date: {convo['date'].strftime('%B %d, %Y')}")
         st.write(f"- 👥 Squad Members: {', '.join(convo['participants'])}")
@@ -655,27 +655,6 @@ def analyze_extended_metrics(df):
             'duration': (longest_marathon[-1]['datetime'] - longest_marathon[0]['datetime'])
         }
     
-    # 2. Speed Records (fastest replies)
-    min_reply_time = pd.Timedelta(seconds=1)  # Exclude instantaneous replies
-    speed_records = {}
-    
-    for sender in df['sender'].unique():
-        sender_replies = df[
-            (df['sender'] == sender) & 
-            (df['timediff'] > min_reply_time)
-        ]['timediff']
-        
-        if not sender_replies.empty:
-            fastest_reply = sender_replies.min()
-            fastest_idx = df[df['timediff'] == fastest_reply].index[0]
-            speed_records[sender] = {
-                'time': fastest_reply,
-                'date': df.loc[fastest_idx, 'date'],
-                'message': df.loc[fastest_idx, 'message']
-            }
-    
-    extended_metrics['speed_records'] = speed_records
-    
     # 3. Longest Time Without Reply
     max_gap = df['timediff'].max()
     gap_idx = df['timediff'].idxmax()
@@ -715,7 +694,7 @@ def display_extended_metrics(extended_metrics):
     # 1. Typing Marathon
     if 'typing_marathon' in extended_metrics:
         marathon = extended_metrics['typing_marathon']
-        st.subheader("⌨️ Typing Marathon Champion")
+        st.subheader("Speed Typer Supreme 🏃‍♂️💨")
         st.write(f"🏃 {marathon['sender']} went on a typing spree with {marathon['messages']} messages")
         st.write(f"📅 Date: {marathon['date'].strftime('%B %d, %Y')}")
         st.write(f"⏱️ Duration: {marathon['duration'].total_seconds() / 60:.1f} minutes")
@@ -731,16 +710,16 @@ def display_extended_metrics(extended_metrics):
     # 3. Longest Gap
     if 'longest_gap' in extended_metrics:
         gap = extended_metrics['longest_gap']
-        st.subheader("🕒 The Great Silence")
+        st.subheader("🕒 Ghost Mode Timeline 👻⏰")
         days = gap['duration'].total_seconds() / (24 * 3600)
         st.write(f"⏳ {days:.1f} days of silence")
-        st.write(f"📅 Starting: {gap['date'].strftime('%B %d, %Y')}")
+        st.write(f"📅 Ended: {gap['date'].strftime('%B %d, %Y')}")
         if gap['prev_sender'] and gap['next_sender']:
             st.write(f"👥 From {gap['prev_sender']} to {gap['next_sender']}")
     
     # 4. Funny Messages
     if 'funny_messages' in extended_metrics:
-        st.subheader("😂 Laughter Analytics")
+        st.subheader("Bestie Humor Check (Real Tea) 💅😂")
         for sender, stats in extended_metrics['funny_messages'].items():
             st.write(f"😄 {sender}:")
             st.write(f"- 🎯 {stats['count']} funny messages")
@@ -752,8 +731,8 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
     
     text_parts = []
     
-    text_parts.append("🎭 ULTIMATE ChatWrap FRIENDSHIP REPORT 🎭\n")
-    text_parts.append("(Generated by the ChatWrap Friendship Analyzer LOVE YOUR FRIEND 3000+)\n")
+    text_parts.append("ULTIMATE ChatWrap FRIENDSHIP REPORT\n")
+    text_parts.append("(Powered by ChatWrap Friendship Analyzer LOVE YOUR FRIEND 3000+)\n")
     
     # Message Count Stats
     text_parts.append("\n📱 THE BIG NUMBERS SHOWDOWN")
@@ -781,7 +760,7 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
             # Get top 3 emojis for a cleaner display
             top_emojis = emojis[:3]
             emoji_text = ' | '.join([f"{emoji} ({count})" for emoji, count in top_emojis])
-            text_parts.append(f"💝 {sender}'s top 3: {emoji_text}")
+            text_parts.append(f"🤌🏼 {sender}'s top 3: {emoji_text}")
     
     # Message Length
     text_parts.append("\n📝 THE WORDSMITH AWARDS")
@@ -802,11 +781,12 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
         }
         text_parts.append(f"{style_emojis.get(style, '📱')} {friend}")
 
-    # Add Chat Highlights Section
+    # Add Main Character Moments ✨ Section
     highlights = analyze_chat_highlights(df)
-    text_parts.append("\n🎯 CHAT HIGHLIGHTS")
-    text_parts.append("-------------------")
-
+    text_parts.append("\n🎯 Main Character Moments ✨")
+    text_parts.append("✨💖✨💖✨💖✨💖✨💖✨")
+    text_parts.append("       ")
+    
     # Most Active Day
     if 'most_active_day' in highlights:
         active = highlights['most_active_day']
@@ -824,11 +804,12 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
             text_parts.append(f"- ✨ {sender}: {msg_data['length']} characters on {msg_data['date'].strftime('%B %d, %Y')}")
 
     if extended_metrics:
-        text_parts.append("\n🎯 EXTENDED CHAT STATS")
-        text_parts.append("--------------------")
+        text_parts.append("\n🎯 Extra Tea ☕️ (Basically The Receipts 🧾)")
+        text_parts.append("💫🌟💫🌟💫🌟💫🌟💫🌟💫")
 
         # 1. Typing Marathon Stats
-        text_parts.append("\n⌨️ TYPING MARATHON HIGHLIGHTS")
+        text_parts.append("\n⚡️ BESTIE WENT BERZERK FR FR")
+        text_parts.append("             ")
         if 'typing_marathon' in extended_metrics:
             marathon = extended_metrics['typing_marathon']
             text_parts.append(f"🏃 Marathon Champion: {marathon['sender']}")
@@ -838,21 +819,8 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
             text_parts.append(f"   - Date: {marathon['date'].strftime('%B %d, %Y')}")
             text_parts.append(f"   - Messages per minute: {marathon['messages'] / (marathon['duration'].total_seconds() / 60):.1f}")
 
-        # 2. Speed Records - Detailed Breakdown
-        text_parts.append("\n⚡ SPEED DEMONS LEADERBOARD")
-        if 'speed_records' in extended_metrics:
-            for sender, record in extended_metrics['speed_records'].items():
-                seconds = record['time'].total_seconds()
-                text_parts.append(f"\n🏃 {sender}'s Speed Profile:")
-                text_parts.append(f"   - Fastest reply: {seconds:.1f} seconds")
-                text_parts.append(f"   - Achievement date: {record['date'].strftime('%B %d, %Y')}")
-                if len(record['message']) > 50:
-                    text_parts.append(f"   - The speedy message: {record['message'][:50]}...")
-                else:
-                    text_parts.append(f"   - The speedy message: {record['message']}")
-
         # 3. Chat Gaps Analysis
-        text_parts.append("\n🕒 THE GREAT SILENCE ANALYSIS")
+        text_parts.append("\n🕒 Ghost Mode Timeline 👻⏰")
         if 'longest_gap' in extended_metrics:
             gap = extended_metrics['longest_gap']
             days = gap['duration'].total_seconds() / (24 * 3600)
@@ -865,9 +833,9 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
                 text_parts.append(f"   - Silence broken by: {gap['next_sender']}")
 
         # 4. Laughter and Fun Analysis
-        text_parts.append("\n😂 LAUGHTER & FUN METRICS")
+        text_parts.append("\n😂 Bestie LOL Report 🤣💅")
         if 'funny_messages' in extended_metrics:
-            text_parts.append("\n🎭 Humor Profile:")
+            text_parts.append("\n🤣 COMEDY KING/QUEEN BEHAVIOUR")
             for sender, stats in extended_metrics['funny_messages'].items():
                 text_parts.append(f"\n😄 {sender}'s Fun Stats:")
                 text_parts.append(f"   - Total fun messages: {stats['count']}")
@@ -875,8 +843,11 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
                 text_parts.append(f"   - That's {stats['count'] / len(df[df['sender'] == sender]) * 100:.1f}% of their total messages!")
                 
         # 5. Time Distribution Analysis
-        text_parts.append("\n⏰ MESSAGING TIME PATTERNS")
-        for sender in df['sender'].unique():
+        text_parts.append("\n⏰ Clock Check (AKA When We're In Our Element) ⏰✨")
+        # Get all unique participants
+        participants = df['sender'].unique()
+        
+        for sender in participants:
             sender_df = df[df['sender'] == sender]
             sender_df['hour'] = sender_df['time'].apply(lambda x: x.hour)
             
@@ -889,16 +860,23 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
             text_parts.append(f"   - Peak activity hour: {peak_hour:02d}:00")
             text_parts.append(f"   - Messages at peak hour: {peak_count}")
             
-            # Morning/Night ratio
-            morning_messages = len(sender_df[sender_df['hour'].between(6, 11)])
-            night_messages = len(sender_df[sender_df['hour'].between(22, 5)])
+            # Morning/Night ratio with fixed calculation
             total_messages = len(sender_df)
+            morning_messages = len(sender_df[sender_df['hour'].between(6, 11)])
+            # Fixed night messages calculation
+            night_messages = len(sender_df[
+                (sender_df['hour'] >= 22) | (sender_df['hour'] <= 5)
+            ])
             
-            text_parts.append(f"   - Morning person score: {morning_messages/total_messages*100:.1f}%")
-            text_parts.append(f"   - Night owl score: {night_messages/total_messages*100:.1f}%")
+            morning_percentage = (morning_messages/total_messages*100) if total_messages > 0 else 0
+            night_percentage = (night_messages/total_messages*100) if total_messages > 0 else 0
+            
+            text_parts.append(f"   - Morning person score: {morning_percentage:.1f}%")
+            text_parts.append(f"   - Night owl score: {night_percentage:.1f}%")
+
 
         # 6. Message Length Analysis
-        text_parts.append("\n📝 MESSAGE LENGTH METRICS")
+        text_parts.append("\n💅 TEXTING STYLE REPORT (NO CAP)")
         for sender in df['sender'].unique():
             sender_messages = df[df['sender'] == sender]['message']
             lengths = [len(msg) for msg in sender_messages]
@@ -929,10 +907,10 @@ def main():
     
     analysis_mode = st.selectbox(
         "Choose Your Friendship Analysis Adventure! 🎮",
-        ["Single Squad Analysis 👥", "Multi-Squad Showdown 🎭"]
+        ["Single Squad Vibe Check 👥✨", "Squad vs Squad Battle Royale 🎮💥"]
     )
     
-    if analysis_mode == "Single Squad Analysis 👥":
+    if analysis_mode == "Single Squad Vibe Check 👥✨":
         uploaded_file = st.file_uploader("Drop Your Friendship Chronicles Here! 📱", type=['zip', 'txt'])
         
         if uploaded_file:
@@ -1038,7 +1016,7 @@ def main():
                     height=50
                 )
                 
-    else:  # Multi-Squad Showdown mode
+    else:  # Squad vs Squad Battle Royale 🎮💥 mode
         st.write("Time for the Ultimate Friendship Squad Showdown! 🎭")
         uploaded_files = st.file_uploader(
             "Upload Your Squad Chronicles! 📱",
