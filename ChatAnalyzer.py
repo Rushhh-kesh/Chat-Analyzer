@@ -902,7 +902,7 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
     return "\n".join(text_parts)
 
 def main():
-    st.title("🤝 ChatWrap Chat Analyzer")
+    st.image("img2.jpg", use_container_width=True)
     st.write("Let's see who's winning at friendship! 📊")
     
     analysis_mode = st.selectbox(
