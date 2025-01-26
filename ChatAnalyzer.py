@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from collections import Counter
 import emoji
 import chardet
+import gc  
 import random
 import pyperclip
 
@@ -118,6 +119,9 @@ def process_chat_file(content):
         'sender': senders,
         'message': messages_text
     }).drop_duplicates()
+
+def clear_memory():
+    gc.collect()    
 
 def analyze_friendship(df):
     insights = {}
@@ -1021,7 +1025,8 @@ def main():
         uploaded_files = st.file_uploader(
             "Upload Your Squad Chronicles! 📱",
             type=['zip', 'txt'],
-            accept_multiple_files=True
+            accept_multiple_files=True,
+            key="multi_file_upload"  
         )
         
         if uploaded_files and len(uploaded_files) >= 2:
