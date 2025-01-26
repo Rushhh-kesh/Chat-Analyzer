@@ -821,7 +821,7 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
             text_parts.append(f"   - Messages in streak: {marathon['messages']}")
             text_parts.append(f"   - Duration: {marathon['duration'].total_seconds() / 60:.1f} minutes")
             text_parts.append(f"   - Date: {marathon['date'].strftime('%B %d, %Y')}")
-            text_parts.append(f"   - Messages per minute: {marathon['messages'] / (marathon['duration'].total_seconds() / 60):.1f}")
+            text_parts.append(f"   - Messages per minute: {marathon['messages'] / max(marathon['duration'].total_seconds() / 60, 0.1):.1f}")
 
         # 3. Chat Gaps Analysis
         text_parts.append("\n🕒 Ghost Mode Timeline 👻⏰")
