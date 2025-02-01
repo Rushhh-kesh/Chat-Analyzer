@@ -744,17 +744,23 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
     for friend, count in insights['message_counts'].items():
         text_parts.append(f"🎯 {friend}: {count} messages sent to the friendship void")
     
-    # First Message Hero
+    # First Message Hero - Handle single participant case
     text_parts.append("\n🌅 THE CONVERSATION STARTER AWARD")
     text_parts.append("--------------------------------")
     first_starter = first_message_counts.index[0]
-    second_starter = first_message_counts.index[1]
     first_count = first_message_counts.iloc[0]
-    second_count = first_message_counts.iloc[1]
-    total_days = first_count + second_count
     
-    text_parts.append(f"👑 {first_starter}: Started {first_count} conversations ({(first_count/total_days*100):.1f}%)")
-    text_parts.append(f"🌟 {second_starter}: Started {second_count} conversations ({(second_count/total_days*100):.1f}%)")
+    # Check if there's more than one participant
+    if len(first_message_counts) > 1:
+        second_starter = first_message_counts.index[1]
+        second_count = first_message_counts.iloc[1]
+        total_days = first_count + second_count
+        
+        text_parts.append(f"👑 {first_starter}: Started {first_count} conversations ({(first_count/total_days*100):.1f}%)")
+        text_parts.append(f"🌟 {second_starter}: Started {second_count} conversations ({(second_count/total_days*100):.1f}%)")
+    else:
+        # Handle single participant case
+        text_parts.append(f"👑 {first_starter}: Started {first_count} conversations (100%)")
     
     # Favorite Emojis Section
     text_parts.append("\n😊 EMOJI PERSONALITIES")
@@ -848,7 +854,6 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
                 
         # 5. Time Distribution Analysis
         text_parts.append("\n⏰ Clock Check (AKA When We're In Our Element) ⏰✨")
-        # Get all unique participants
         participants = df['sender'].unique()
         
         for sender in participants:
@@ -867,7 +872,6 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
             # Morning/Night ratio with fixed calculation
             total_messages = len(sender_df)
             morning_messages = len(sender_df[sender_df['hour'].between(6, 11)])
-            # Fixed night messages calculation
             night_messages = len(sender_df[
                 (sender_df['hour'] >= 22) | (sender_df['hour'] <= 5)
             ])
@@ -877,7 +881,6 @@ def create_sharable_text(df, insights, fun_insights, first_message_counts):
             
             text_parts.append(f"   - Morning person score: {morning_percentage:.1f}%")
             text_parts.append(f"   - Night owl score: {night_percentage:.1f}%")
-
 
         # 6. Message Length Analysis
         text_parts.append("\n💅 TEXTING STYLE REPORT (NO CAP)")
@@ -911,11 +914,22 @@ def main():
     
     analysis_mode = st.selectbox(
         "Choose Your Friendship Analysis Adventure! 🎮",
-        ["Single Squad Vibe Check 👥✨", "Squad vs Squad Battle Royale 🎮💥"]
+        ["Click here to Single Squad ✨ / Squad vs Squad 🎮", "Single Squad Vibe Check 👥✨", "Squad vs Squad Battle Royale 🎮💥"]
     )
     
-    if analysis_mode == "Single Squad Vibe Check 👥✨":
+    if analysis_mode == "Click here to Single Squad ✨ / Squad vs Squad 🎮":
+        st.write("You gotta pick an option! 👀✨")
+        st.write("bestie, we can't spill the friendship tea without knowing which analysis you want! 💅")
+        st.markdown("""
+        pick:
+        - 👥 Single Squad = just Single chat
+        - 🎮 Squad Battle = compare different chats and see who's actually got that rizz.
+        """)
+        return
+        
+    elif analysis_mode == "Single Squad Vibe Check 👥✨":
         uploaded_file = st.file_uploader("Drop Your Friendship Chronicles Here! 📱", type=['zip', 'txt'])
+
         
         if uploaded_file:
             content = process_uploaded_file(uploaded_file)
