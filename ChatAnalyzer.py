@@ -121,7 +121,10 @@ def process_chat_file(content):
     }).drop_duplicates()
 
 def clear_memory():
-    gc.collect()    
+    gc.collect()
+    for key in list(globals().keys()):
+        if key.startswith('df_'):
+            del globals()[key]   
 
 def analyze_friendship(df):
     insights = {}
@@ -909,13 +912,28 @@ def main():
     st.image("img2.jpg", use_container_width=True)
     st.write("Let's see who's winning at friendship! 📊")
     
-    analysis_mode = st.selectbox(
+    # Initialize session state properly
+    if 'analysis_mode' not in st.session_state:
+        st.session_state['analysis_mode'] = "Single Squad Vibe Check 👥✨"
+    if 'prev_mode' not in st.session_state:
+        st.session_state['prev_mode'] = "Single Squad Vibe Check 👥✨"
+    
+    # Use selectbox with a key
+    current_mode = st.selectbox(
         "Choose Your Friendship Analysis Adventure! 🎮",
-        ["Single Squad Vibe Check 👥✨", "Squad vs Squad Battle Royale 🎮💥"]
+        ["Single Squad Vibe Check 👥✨", "Squad vs Squad Battle Royale 🎮💥"],
+        key='mode_selector'
     )
     
-    if analysis_mode == "Single Squad Vibe Check 👥✨":
-        uploaded_file = st.file_uploader("Drop Your Friendship Chronicles Here! 📱", type=['zip', 'txt'])
+    # Update session state
+    if current_mode != st.session_state['prev_mode']:
+        st.session_state.clear()
+        st.session_state['analysis_mode'] = current_mode
+        st.session_state['prev_mode'] = current_mode
+        st.experimental_rerun()
+    
+    if current_mode == "Single Squad Vibe Check 👥✨":
+        uploaded_file = st.file_uploader("Drop Your Friendship Chronicles Here! 📱", type=['zip', 'txt'], key='single_upload')
         
         if uploaded_file:
             content = process_uploaded_file(uploaded_file)
@@ -1020,13 +1038,12 @@ def main():
                     height=50
                 )
                 
-    else:  # Squad vs Squad Battle Royale 🎮💥 mode
-        st.write("Time for the Ultimate Friendship Squad Showdown! 🎭")
+    else:  # Squad vs Squad Battle Royale mode
         uploaded_files = st.file_uploader(
             "Upload Your Squad Chronicles! 📱",
             type=['zip', 'txt'],
             accept_multiple_files=True,
-            key="multi_file_upload"  
+            key='multi_upload'
         )
         
         if uploaded_files and len(uploaded_files) >= 2:
@@ -1040,9 +1057,9 @@ def main():
                     if not df.empty:
                         chat_name = st.text_input(
                             f"Give a fun name to {file.name}'s squad! 🎭",
-                            value=file.name.split('.')[0]
+                            value=file.name.split('.')[0],
+                            key=f"chat_name_{file.name}"
                         )
-                        dataframes[chat_name] = df
             
             if len(dataframes) >= 2:
                 st.header("🎭 Squad Showdown Results!")
